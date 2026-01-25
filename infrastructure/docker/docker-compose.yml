@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainscape-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-chainscape}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-chainscape_secret}
+      POSTGRES_DB: ${DB_NAME:-chainscape}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../database/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainscape"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainscape-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: chainscape-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainscape-network
+
+  # Game Server (2009scape fork)
+  game-server:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.game-server
+    container_name: chainscape-game-server
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-chainscape}
+      DB_PASSWORD: ${DB_PASSWORD:-chainscape_secret}
+      DB_NAME: ${DB_NAME:-chainscape}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WS_PORT: 43595
+      SOLANA_NETWORK: ${SOLANA_NETWORK:-devnet}
+    ports:
+      - "43594:43594"  # Game port
+      - "43595:43595"  # WebSocket port
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - game_cache:/app/cache
+      - game_logs:/app/logs
+    networks:
+      - chainscape-network
+
+  # Blockchain Bridge Service
+  bridge-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.bridge
+    container_name: chainscape-bridge
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-chainscape}
+      DB_PASSWORD: ${DB_PASSWORD:-chainscape_secret}
+      DB_NAME: ${DB_NAME:-chainscape}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      SOLANA_WS_URL: ${SOLANA_WS_URL:-wss://api.devnet.solana.com}
+      TOKEN_MINT_ADDRESS: ${TOKEN_MINT_ADDRESS}
+      MINT_AUTHORITY_KEY: ${MINT_AUTHORITY_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      game-server:
+        condition: service_started
+    volumes:
+      - bridge_logs:/app/logs
+    networks:
+      - chainscape-network
+
+  # Web Client (Nginx + Static files)
+  web-client:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web-client
+    container_name: chainscape-web
+    environment:
+      VITE_SOLANA_NETWORK: ${SOLANA_NETWORK:-devnet}
+      VITE_WS_URL: ${WS_URL:-ws://localhost:43595/ws}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ssl_certs:/etc/nginx/ssl:ro
+    depends_on:
+      - game-server
+    networks:
+      - chainscape-network
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: chainscape-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - chainscape-network
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: chainscape-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - chainscape-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  game_cache:
+  game_logs:
+  bridge_logs:
+  ssl_certs:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  chainscape-network:
+    driver: bridge

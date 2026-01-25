@@ -1,0 +1,65 @@
+# ChainScape Game Server Dockerfile
+# Based on 2009scape with blockchain extensions
+
+FROM eclipse-temurin:17-jdk AS builder
+
+WORKDIR /build
+
+# Install Kotlin compiler
+RUN apt-get update && apt-get install -y wget unzip && \
+    wget -q https://github.com/JetBrains/kotlin/releases/download/v1.9.21/kotlin-compiler-1.9.21.zip && \
+    unzip kotlin-compiler-1.9.21.zip -d /opt && \
+    rm kotlin-compiler-1.9.21.zip
+
+ENV PATH="/opt/kotlinc/bin:${PATH}"
+
+# Copy game server source
+COPY game-server/Server /build/Server
+COPY common /build/common
+
+# Copy Gradle wrapper and build files
+COPY game-server/build.gradle.kts /build/
+COPY game-server/settings.gradle.kts /build/
+COPY game-server/gradlew /build/
+COPY game-server/gradle /build/gradle
+
+# Build the server
+RUN chmod +x gradlew && \
+    ./gradlew :Server:shadowJar --no-daemon
+
+# Runtime image
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+# Install netcat for healthchecks
+RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
+
+# Copy built JAR
+COPY --from=builder /build/Server/build/libs/server.jar /app/server.jar
+
+# Copy configuration files
+COPY game-server/Server/config /app/config
+
+# Create directories
+RUN mkdir -p /app/cache /app/logs /app/data
+
+# Non-root user
+RUN useradd -r -u 1000 chainscape && \
+    chown -R chainscape:chainscape /app
+USER chainscape
+
+# Environment variables
+ENV JAVA_OPTS="-Xms2g -Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
+ENV SERVER_PORT=43594
+ENV WS_PORT=43595
+
+# Expose ports
+EXPOSE 43594 43595
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD nc -z localhost ${SERVER_PORT} && nc -z localhost ${WS_PORT} || exit 1
+
+# Start server
+CMD ["sh", "-c", "java ${JAVA_OPTS} -jar server.jar"]

@@ -1,0 +1,47 @@
+# ChainScape Blockchain Bridge Service Dockerfile
+
+FROM eclipse-temurin:17-jdk AS builder
+
+WORKDIR /build
+
+# Copy bridge service source
+COPY blockchain-bridge /build/blockchain-bridge
+COPY common /build/common
+
+# Copy Gradle wrapper and build files
+COPY blockchain-bridge/build.gradle.kts /build/
+COPY blockchain-bridge/settings.gradle.kts /build/
+COPY blockchain-bridge/gradlew /build/
+COPY blockchain-bridge/gradle /build/gradle
+
+# Build the service
+RUN chmod +x gradlew && \
+    ./gradlew shadowJar --no-daemon
+
+# Runtime image
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+# Copy built JAR
+COPY --from=builder /build/blockchain-bridge/build/libs/bridge-service.jar /app/bridge-service.jar
+
+# Create directories
+RUN mkdir -p /app/logs /app/config
+
+# Non-root user
+RUN useradd -r -u 1000 chainscape && \
+    chown -R chainscape:chainscape /app
+USER chainscape
+
+# Environment variables
+ENV JAVA_OPTS="-Xms512m -Xmx1g -XX:+UseG1GC"
+
+# Health check via actuator endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+EXPOSE 8080
+
+# Start service
+CMD ["sh", "-c", "java ${JAVA_OPTS} -jar bridge-service.jar"]

@@ -30,6 +30,24 @@ public class TokenOperations {
     private static final long RETRY_DELAY_MS = 1000;
     private static final int PRIORITY_FEE_MICROLAMPORTS = 10000; // 0.00001 SOL per CU
 
+    // Token decimals (1 CSGP = 1 GP, with 6 decimal places on-chain)
+    public static final int TOKEN_DECIMALS = 6;
+    public static final long DECIMAL_MULTIPLIER = (long) Math.pow(10, TOKEN_DECIMALS);
+
+    /**
+     * Converts GP amount to on-chain token units.
+     */
+    public static BigInteger gpToTokenUnits(long gp) {
+        return BigInteger.valueOf(gp).multiply(BigInteger.valueOf(DECIMAL_MULTIPLIER));
+    }
+
+    /**
+     * Converts on-chain token units to GP amount.
+     */
+    public static long tokenUnitsToGp(BigInteger units) {
+        return units.divide(BigInteger.valueOf(DECIMAL_MULTIPLIER)).longValue();
+    }
+
     public TokenOperations(
             String rpcUrl,
             String backupRpcUrl,
@@ -53,10 +71,10 @@ public class TokenOperations {
      * Used for withdrawal processing.
      *
      * @param destinationWallet The Solana wallet to receive tokens
-     * @param amount The amount of tokens to mint (1 token = 1 GP)
+     * @param amountInTokenUnits The amount in smallest token units (GP * 10^6)
      * @return The transaction signature, or null if failed
      */
-    public String mintTokens(String destinationWallet, BigInteger amount) {
+    public String mintTokens(String destinationWallet, BigInteger amountInTokenUnits) {
         PublicKey destination = new PublicKey(destinationWallet);
 
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {

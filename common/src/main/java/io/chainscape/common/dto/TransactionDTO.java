@@ -5,6 +5,8 @@ import java.util.UUID;
 
 /**
  * Data Transfer Object for blockchain transactions.
+ * Note: amountGP is the GP value (1 GP = 1 CSGP token).
+ * On-chain, this is stored as amountGP * 10^6 due to 6 decimal places.
  */
 public record TransactionDTO(
         long id,

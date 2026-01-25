@@ -17,9 +17,17 @@ import bs58 from 'bs58';
 export const CSGP_TOKEN_CONFIG = {
   // Will be set after mainnet deployment
   mint: new PublicKey('CSGPTokenMintAddressWillBeSetAfterDeployment11'),
-  decimals: 0,
+  decimals: 6,
+  initialSupply: 1_000_000_000, // 1 billion tokens
   burnAddress: new PublicKey('BurnAddressForCSGPTokensWillBeSet11111111111'),
 };
+
+// Conversion helpers (1 GP = 1 CSGP, but on-chain uses 6 decimal places)
+export const GP_TO_TOKEN_UNITS = (gp: number | bigint): bigint =>
+  BigInt(gp) * BigInt(10 ** CSGP_TOKEN_CONFIG.decimals);
+
+export const TOKEN_UNITS_TO_GP = (units: bigint): number =>
+  Number(units / BigInt(10 ** CSGP_TOKEN_CONFIG.decimals));
 
 export const SOLANA_NETWORKS = {
   mainnet: 'https://api.mainnet-beta.solana.com',

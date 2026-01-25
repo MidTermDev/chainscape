@@ -111,9 +111,11 @@ docker-compose -f infrastructure/docker/docker-compose.yml up -d --build
 |----------|-------|
 | Name | ChainScape Gold |
 | Symbol | CSGP |
-| Decimals | 0 (1 token = 1 GP) |
-| Initial Supply | 0 (mint-on-demand) |
+| Decimals | 6 |
+| Initial Supply | 1,000,000,000 (1 billion) |
 | Mint Authority | Squads Multisig |
+
+> **Note**: 1 CSGP = 1 GP. With 6 decimals, on-chain amounts are multiplied by 10^6.
 
 ### Creating the Token (Devnet)
 
@@ -121,11 +123,14 @@ docker-compose -f infrastructure/docker/docker-compose.yml up -d --build
 # Install Solana CLI
 sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
 
-# Create token with 0 decimals
-spl-token create-token --decimals 0
+# Create token with 6 decimals
+spl-token create-token --decimals 6
 
 # Create token account
 spl-token create-account <TOKEN_MINT_ADDRESS>
+
+# Mint initial supply (1 billion tokens = 1_000_000_000_000_000 smallest units)
+spl-token mint <TOKEN_MINT_ADDRESS> 1000000000000000
 ```
 
 ## Core Flows

@@ -9,10 +9,10 @@ export enum ServerOpcode {
   INVENTORY_UPDATE = 0x03,
   CHAT_MESSAGE = 0x04,
   SYSTEM_MESSAGE = 0x05,
-  WALLET_LINK_CHALLENGE = 0x10,
-  WALLET_LINK_RESULT = 0x11,
+  DEPOSIT_ADDRESS_RESPONSE = 0x10,
   GP_UPDATE = 0x12,
   TRANSACTION_STATUS = 0x13,
+  DEPOSIT_CREDITED = 0x14,
   WORLD_UPDATE = 0x20,
   NPC_UPDATE = 0x21,
   GROUND_ITEMS = 0x22,
@@ -26,8 +26,7 @@ export enum ClientOpcode {
   LOGOUT_REQUEST = 0x02,
   PLAYER_ACTION = 0x03,
   CHAT_MESSAGE = 0x04,
-  WALLET_LINK_REQUEST = 0x10,
-  WALLET_VERIFY = 0x11,
+  DEPOSIT_ADDRESS_REQUEST = 0x10,
   WITHDRAW_REQUEST = 0x12,
   MOVEMENT = 0x20,
   INTERFACE_ACTION = 0x21,
@@ -67,11 +66,8 @@ export class PacketHandler {
       case ServerOpcode.SYSTEM_MESSAGE:
         this.handleSystemMessage(payload);
         break;
-      case ServerOpcode.WALLET_LINK_CHALLENGE:
-        this.handleWalletLinkChallenge(payload);
-        break;
-      case ServerOpcode.WALLET_LINK_RESULT:
-        this.handleWalletLinkResult(payload);
+      case ServerOpcode.DEPOSIT_ADDRESS_RESPONSE:
+        this.handleDepositAddressResponse(payload);
         break;
       case ServerOpcode.GP_UPDATE:
         this.handleGPUpdate(payload);
@@ -156,26 +152,10 @@ export class PacketHandler {
     // Display system message
   }
 
-  private handleWalletLinkChallenge(payload: Uint8Array): void {
-    const challenge = this.textDecoder.decode(payload);
-    // Store challenge for signing
+  private handleDepositAddressResponse(payload: Uint8Array): void {
+    const address = this.textDecoder.decode(payload);
     window.dispatchEvent(
-      new CustomEvent('wallet:challenge', { detail: { challenge } })
-    );
-  }
-
-  private handleWalletLinkResult(payload: Uint8Array): void {
-    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-    const success = view.getUint8(0) === 1;
-
-    if (success) {
-      const addressLength = view.getUint8(1);
-      const address = this.textDecoder.decode(payload.slice(2, 2 + addressLength));
-      useGameStore.getState().setWallet({ address, isLinked: true });
-    }
-
-    window.dispatchEvent(
-      new CustomEvent('wallet:linkResult', { detail: { success } })
+      new CustomEvent('wallet:depositAddress', { detail: { address } })
     );
   }
 
@@ -226,24 +206,21 @@ export class PacketHandler {
     this.client.sendPacket(ClientOpcode.LOGIN_REQUEST, payload);
   }
 
-  sendWalletLinkRequest(): void {
-    this.client.sendPacket(ClientOpcode.WALLET_LINK_REQUEST);
+  sendDepositAddressRequest(): void {
+    this.client.sendPacket(ClientOpcode.DEPOSIT_ADDRESS_REQUEST);
   }
 
-  sendWalletVerify(address: string, signature: string): void {
-    const addressBytes = this.textEncoder.encode(address);
-    const signatureBytes = this.textEncoder.encode(signature);
-    const payload = new Uint8Array(2 + addressBytes.length + signatureBytes.length);
-
-    payload[0] = addressBytes.length;
-    payload.set(addressBytes, 1);
-    payload[1 + addressBytes.length] = signatureBytes.length;
-    payload.set(signatureBytes, 2 + addressBytes.length);
-
-    this.client.sendPacket(ClientOpcode.WALLET_VERIFY, payload);
+  sendWithdrawRequest(amount: bigint, destinationAddress: string): void {
+    const addressBytes = this.textEncoder.encode(destinationAddress);
+    const payload = new Uint8Array(8 + 1 + addressBytes.length);
+    const view = new DataView(payload.buffer);
+    view.setBigInt64(0, amount, false);
+    payload[8] = addressBytes.length;
+    payload.set(addressBytes, 9);
+    this.client.sendPacket(ClientOpcode.WITHDRAW_REQUEST, payload);
   }
 
-  sendWithdrawRequest(amount: bigint): void {
+  sendWithdrawRequestLegacy(amount: bigint): void {
     const payload = new Uint8Array(8);
     const view = new DataView(payload.buffer);
     view.setBigInt64(0, amount, false);

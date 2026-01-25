@@ -28,7 +28,7 @@ public class DepositProcessor {
     private volatile boolean running = false;
 
     // Configuration
-    private static final int REQUIRED_CONFIRMATIONS = 32;
+    private static final int REQUIRED_CONFIRMATIONS = 2;
     private static final long POLL_INTERVAL_MS = 1000;
 
     public DepositProcessor(

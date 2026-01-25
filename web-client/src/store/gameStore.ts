@@ -19,7 +19,7 @@ export interface InventoryItem {
 export interface WalletState {
   address: string | null;
   balance: number;
-  isLinked: boolean;
+  depositAddress: string | null;
   pendingTransactions: PendingTransaction[];
 }
 
@@ -60,7 +60,7 @@ interface GameState {
 const initialWalletState: WalletState = {
   address: null,
   balance: 0,
-  isLinked: false,
+  depositAddress: null,
   pendingTransactions: [],
 };
 

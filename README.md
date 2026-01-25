@@ -136,18 +136,21 @@ spl-token mint <TOKEN_MINT_ADDRESS> 1000000000000000
 ## Core Flows
 
 ### Deposit (Blockchain -> Game)
-1. Player burns CSGP tokens (via wallet UI)
-2. Bridge service detects burn transaction
-3. Verifies 32+ confirmations
-4. Credits equivalent GP to player's account
-5. Logs transaction for audit
+1. Player requests their unique deposit address (generated per-account)
+2. Player sends CSGP tokens to their deposit address from any wallet
+3. Bridge service detects incoming tokens (2 confirmations)
+4. Sweep process:
+   - Fund deposit wallet with 0.001 SOL from treasury
+   - Transfer tokens to treasury
+   - Return SOL to treasury
+5. Credits equivalent GP to player's in-game account
 
 ### Withdrawal (Game -> Blockchain)
-1. Player uses `::withdraw <amount>` in-game
-2. Server validates balance, rate limits, fraud score
-3. Atomically debits GP
-4. Bridge queues mint transaction
-5. Tokens arrive in player's wallet
+1. Player connects any Solana wallet in the UI
+2. Player requests withdrawal with amount
+3. Server validates balance, rate limits, fraud score
+4. Atomically debits GP
+5. Bridge mints tokens directly to player's connected wallet
 
 ## Security Features
 
@@ -165,12 +168,10 @@ spl-token mint <TOKEN_MINT_ADDRESS> 1000000000000000
 
 | Command | Description |
 |---------|-------------|
-| `::linkwallet` | Start wallet linking process |
-| `::verifywallet <address> <signature>` | Complete wallet verification |
-| `::unlinkwallet` | Unlink current wallet |
-| `::withdraw <amount>` | Withdraw GP to wallet |
-| `::walletinfo` | Show linked wallet info |
+| `::deposit` | Show your unique deposit address |
+| `::withdraw <amount> <address>` | Withdraw GP to any Solana address |
 | `::gpbalance` | Show GP balance breakdown |
+| `::txhistory` | Show recent deposit/withdrawal history |
 
 ## Contributing
 

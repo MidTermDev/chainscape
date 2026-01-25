@@ -76,3 +76,9 @@ pids/
 *.pid
 *.seed
 *.pid.lock
+
+# Sensitive files
+keypair.json
+*.json.bak
+.env
+.env.local

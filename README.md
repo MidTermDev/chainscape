@@ -12,6 +12,7 @@ ChainScape is a browser-based RuneScape private server (2009 era, pre-EoC with H
 - **Solana Integration** - 1 CSGP token = 1 GP, instant deposits and withdrawals
 - **Wallet Connect** - Native Phantom/Solflare integration
 
+Token Address: K3Kjnk2fm9EdcpTEWVE6rTBB6yRMtoeSJ7zHrbxrugp
 ## Architecture
 
 ```
